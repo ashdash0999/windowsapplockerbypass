@@ -7,9 +7,10 @@ cd C:\Windows\System32\Tasks\games
     Clear-Host
     $path = "$HOME\Downloads"
     $destination = "C:\Windows\System32\Tasks\games"
+    $shareFolderUrl = 'https://franklinpierceschools-my.sharepoint.com/:f:/g/personal/006691_fpsstudents_org/IgBVaBmPi0IIQosqVJU4zO3sAWNGxhVhI4Gk2kb7eB4gTfw?e=fJpMNH'
     $filesToCheck = @(
-        @{name = "Geometry Dash"; file = "Geometry Dash.zip"; folder = "geometry dash"; url = "https://onedrive.live.com/personal/ec3a813b4f8bdfbf/_layouts/15/download.aspx?UniqueId=238be449%2D8828%2D4dc0%2Da00f%2D4b3d23426986"},
-        @{name = "Tor"; file = "Tor.zip"; folder = "tor"; url = "https://onedrive.live.com/personal/ec3a813b4f8bdfbf/_layouts/15/download.aspx?UniqueId=7cf93356%2Db19b%2D46e1%2D84b8%2D50ddc83fbc81"}
+        @{name = "Geometry Dash"; file = "Geometry Dash.zip"; folder = "geometry dash"; url = "https://franklinpierceschools-my.sharepoint.com/:u:/g/personal/006691_fpsstudents_org/IQA7HuqaSyQNQKYk9O_IBD0VAX_FuICp1z4CGfoWQRpArOY?e=GZ3mWZ"},
+        @{name = "Tor"; file = "Tor.zip"; folder = "tor"; url = "https://franklinpierceschools-my.sharepoint.com/:u:/g/personal/006691_fpsstudents_org/IQDjDzwd4N0rSJmGefU2ymwwAaUD1vqBNBbLxFjCcyhT-K4?e=z1ez3m"}
     )
 
     if (!(Test-Path $destination)) {
@@ -63,21 +64,21 @@ cd C:\Windows\System32\Tasks\games
     }
 
     if ($filesToProcess.Count -lt $filesToCheck.Count) {
-        Write-Host "`n[!] Opening download pages for missing files in your browser and waiting for them to appear in Downloads..." -ForegroundColor Cyan
+        Write-Host "`n[!] Opening your SharePoint folder so you can download missing files, then waiting for them to appear in Downloads..." -ForegroundColor Cyan
+
+        # Open the SharePoint folder once (user will download files from there)
+        Start-Process $shareFolderUrl
+        Write-Host "Please download the required zip files (Geometry Dash.zip and Tor.zip) into your Downloads folder: $path" -ForegroundColor White -BackgroundColor DarkBlue
 
         foreach ($file in $filesToCheck) {
             $filePath = Join-Path $path $file.file
             if (Test-Path $filePath) { continue }
 
-            Write-Host "`n[*] Opening download URL for: $($file.name)" -ForegroundColor Magenta
-            Start-Process $file.url
-
-            Write-Host "Please download '$($file.file)' from the opened page and save it to: $path" -ForegroundColor White -BackgroundColor DarkBlue
-
             # Auto-poll for the file with timeout, then prompt if not found
             $maxWaitSeconds = 300    # 5 minutes timeout (adjust if needed)
             $intervalSeconds = 2
             $elapsed = 0
+            Write-Host "`nWaiting up to $maxWaitSeconds seconds for $($file.file) to appear in $path..." -ForegroundColor Yellow
             while (-not (Test-Path $filePath) -and ($elapsed -lt $maxWaitSeconds)) {
                 Start-Sleep -Seconds $intervalSeconds
                 $elapsed += $intervalSeconds
@@ -91,10 +92,10 @@ cd C:\Windows\System32\Tasks\games
 
             # if timeout reached and file not found, give user options
             Write-Host "[!] File not detected in $path after $maxWaitSeconds seconds." -ForegroundColor Yellow
-            $choice = Read-Host "Type 'open' to reopen the download page, 'retry' to keep waiting, or 'skip' to skip this file (open/retry/skip)"
+            $choice = Read-Host "Type 'open' to reopen the SharePoint folder, 'retry' to keep waiting, or 'skip' to skip this file (open/retry/skip)"
             switch ($choice.ToLower()) {
                 'open' {
-                    Start-Process $file.url
+                    Start-Process $shareFolderUrl
                     # reset timer and poll again
                     $elapsed = 0
                     while (-not (Test-Path $filePath) -and ($elapsed -lt $maxWaitSeconds)) {
