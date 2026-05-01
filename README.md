@@ -1,0 +1,2 @@
+# windowsapplockerbypass
+for my school
