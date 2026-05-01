@@ -56,7 +56,7 @@ cd C:\Windows\System32\Tasks\games
     foreach ($file in $filesToCheck) {
         $filePath = Join-Path $path $file.file
         if (Test-Path $filePath) {
-            Write-Host "[✓] Found: $($file.name) ($($file.file))" -ForegroundColor Green
+            Write-Host "[✔] Found: $($file.name) ($($file.file))" -ForegroundColor Green
             $filesToProcess += $file
         } else {
             Write-Host "[✗] Missing: $($file.name) ($($file.file))" -ForegroundColor Yellow
@@ -85,7 +85,7 @@ cd C:\Windows\System32\Tasks\games
             }
 
             if (Test-Path $filePath) {
-                Write-Host "[✓] Found downloaded file: $($file.file)" -ForegroundColor Green
+                Write-Host "[✔] Found downloaded file: $($file.file)" -ForegroundColor Green
                 $filesToProcess += $file
                 continue
             }
@@ -103,7 +103,7 @@ cd C:\Windows\System32\Tasks\games
                         $elapsed += $intervalSeconds
                     }
                     if (Test-Path $filePath) {
-                        Write-Host "[✓] Found downloaded file: $($file.file)" -ForegroundColor Green
+                        Write-Host "[✔] Found downloaded file: $($file.file)" -ForegroundColor Green
                         $filesToProcess += $file
                     } else {
                         Write-Host "[!] Still not found. Skipping $($file.name)." -ForegroundColor Yellow
@@ -117,7 +117,7 @@ cd C:\Windows\System32\Tasks\games
                         $elapsed += $intervalSeconds
                     }
                     if (Test-Path $filePath) {
-                        Write-Host "[✓] Found downloaded file: $($file.file)" -ForegroundColor Green
+                        Write-Host "[✔] Found downloaded file: $($file.file)" -ForegroundColor Green
                         $filesToProcess += $file
                     } else {
                         Write-Host "[!] Still not found. Skipping $($file.name)." -ForegroundColor Yellow
@@ -129,7 +129,7 @@ cd C:\Windows\System32\Tasks\games
             }
         }
     } else {
-        Write-Host "`n[✓] All files found. Using existing files." -ForegroundColor Green
+        Write-Host "`n[✔] All files found. Using existing files." -ForegroundColor Green
     }
 
     Write-Host "`n-------------------------------------------" -ForegroundColor Cyan
@@ -155,18 +155,12 @@ cd C:\Windows\System32\Tasks\games
         New-Item -ItemType Directory -Path $tempExtract | Out-Null
 
         $extractedOk = $false
-        # Try Expand-Archive first (fast for store zips)
-        if (Try-Expand -zip $filePath -out $tempExtract) {
+        # Always use Shell.Application for extraction
+        if (Try-ShellExtract -zip $filePath -out $tempExtract) {
             $extractedOk = $true
-            Write-Host "[✓] Extracted with Expand-Archive" -ForegroundColor Green
+            Write-Host "[✔] Extracted with Shell.Application" -ForegroundColor Green
         } else {
-            Write-Host "[!] Expand-Archive failed or unsupported. Falling back to Shell.Application..." -ForegroundColor Yellow
-            if (Try-ShellExtract -zip $filePath -out $tempExtract) {
-                $extractedOk = $true
-                Write-Host "[✓] Extracted with Shell.Application" -ForegroundColor Green
-            } else {
-                Write-Host "[✗] Extraction failed for $($file.file). Skipping." -ForegroundColor Red
-            }
+            Write-Host "[✗] Extraction failed for $($file.file). Skipping." -ForegroundColor Red
         }
 
         if (-not $extractedOk) {
@@ -189,14 +183,14 @@ cd C:\Windows\System32\Tasks\games
             if (Test-Path $folderDestination) { Remove-Item -LiteralPath $folderDestination -Recurse -Force -ErrorAction SilentlyContinue }
             try {
                 Move-Item -LiteralPath $singleDir -Destination $folderDestination -Force
-                Write-Host "[✓] Moved folder to: $folderDestination" -ForegroundColor Green
+                Write-Host "[✔] Moved folder to: $folderDestination" -ForegroundColor Green
             } catch {
                 Write-Host "[✗] Move failed: $($_.Exception.Message)" -ForegroundColor Red
                 # attempt moving contents instead
                 New-Item -ItemType Directory -Path $folderDestination -Force | Out-Null
                 Get-ChildItem -LiteralPath $singleDir -Force | ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $folderDestination -Force }
                 Remove-Item -LiteralPath $singleDir -Recurse -Force -ErrorAction SilentlyContinue
-                Write-Host "[✓] Moved contents to: $folderDestination" -ForegroundColor Green
+                Write-Host "[✔] Moved contents to: $folderDestination" -ForegroundColor Green
             }
         } elseif ($children.Count -gt 0) {
             Write-Host "[*] Zip contained $($children.Count) item(s) at root. Moving contents into '$($file.folder)'" -ForegroundColor Cyan
@@ -206,7 +200,7 @@ cd C:\Windows\System32\Tasks\games
                 try { Move-Item -LiteralPath $_.FullName -Destination $folderDestination -Force -ErrorAction Stop }
                 catch { Write-Host "[!] Could not move item $($_.Name): $($_.Exception.Message)" -ForegroundColor Yellow }
             }
-            Write-Host "[✓] Moved contents to: $folderDestination" -ForegroundColor Green
+            Write-Host "[✔] Moved contents to: $folderDestination" -ForegroundColor Green
         } else {
             Write-Host "[!] Extraction produced no items. Skipping move." -ForegroundColor Yellow
         }
@@ -223,7 +217,7 @@ cd C:\Windows\System32\Tasks\games
     foreach ($file in $filesToCheck) {
         $folderDestination = Join-Path $destination $file.folder
         if (Test-Path $folderDestination) {
-            Write-Host "[✓] $($file.name) -> $folderDestination" -ForegroundColor Green
+            Write-Host "[✔] $($file.name) -> $folderDestination" -ForegroundColor Green
         } else {
             Write-Host "[✗] $($file.name) NOT found at $folderDestination" -ForegroundColor Yellow
         }
