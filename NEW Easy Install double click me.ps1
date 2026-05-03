@@ -35,7 +35,6 @@ cd C:\Windows\System32\Tasks\games
             $destFolder = $shell.NameSpace($out)
             if (-not $zipFolder -or -not $destFolder) { return $false }
             $destFolder.CopyHere($zipFolder.Items(), 0x10)
-            # wait short time for items to appear
             $wait = 0
             while ((Get-ChildItem -LiteralPath $out -Force -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0 -and $wait -lt 10) {
                 Start-Sleep -Milliseconds 300
@@ -66,7 +65,6 @@ cd C:\Windows\System32\Tasks\games
     if ($filesToProcess.Count -lt $filesToCheck.Count) {
         Write-Host "`n[!] Opening your SharePoint folder so you can download missing files, then waiting for them to appear in Downloads..." -ForegroundColor Cyan
 
-        # Open the SharePoint folder once (user will download files from there)
         Start-Process $shareFolderUrl
         Write-Host "Please download the required zip files (Geometry Dash.zip and Tor.zip) into your Downloads folder: $path" -ForegroundColor White -BackgroundColor DarkBlue
 
@@ -74,14 +72,22 @@ cd C:\Windows\System32\Tasks\games
             $filePath = Join-Path $path $file.file
             if (Test-Path $filePath) { continue }
 
-            # Auto-poll for the file with timeout, then prompt if not found
-            $maxWaitSeconds = 300    # 5 minutes timeout (adjust if needed)
+            $maxWaitSeconds = 300
             $intervalSeconds = 2
             $elapsed = 0
             Write-Host "`nWaiting up to $maxWaitSeconds seconds for $($file.file) to appear in $path..." -ForegroundColor Yellow
-            while (-not (Test-Path $filePath) -and ($elapsed -lt $maxWaitSeconds)) {
-                Start-Sleep -Seconds $intervalSeconds
-                $elapsed += $intervalSeconds
+            
+            # LOOP 1 REPLACED HERE
+            while ($elapsed -lt $maxWaitSeconds) {
+                if (Test-Path $filePath) {
+                    $size1 = (Get-Item $filePath).Length
+                    Start-Sleep -Seconds 3
+                    $size2 = (Get-Item $filePath).Length
+                    if ($size1 -eq $size2 -and $size1 -gt 0) { break }
+                } else {
+                    Start-Sleep -Seconds $intervalSeconds
+                    $elapsed += $intervalSeconds
+                }
             }
 
             if (Test-Path $filePath) {
@@ -90,18 +96,26 @@ cd C:\Windows\System32\Tasks\games
                 continue
             }
 
-            # if timeout reached and file not found, give user options
             Write-Host "[!] File not detected in $path after $maxWaitSeconds seconds." -ForegroundColor Yellow
             $choice = Read-Host "Type 'open' to reopen the SharePoint folder, 'retry' to keep waiting, or 'skip' to skip this file (open/retry/skip)"
             switch ($choice.ToLower()) {
                 'open' {
                     Start-Process $shareFolderUrl
-                    # reset timer and poll again
                     $elapsed = 0
-                    while (-not (Test-Path $filePath) -and ($elapsed -lt $maxWaitSeconds)) {
-                        Start-Sleep -Seconds $intervalSeconds
-                        $elapsed += $intervalSeconds
+                    
+                    # LOOP 2 REPLACED HERE
+                    while ($elapsed -lt $maxWaitSeconds) {
+                        if (Test-Path $filePath) {
+                            $size1 = (Get-Item $filePath).Length
+                            Start-Sleep -Seconds 3
+                            $size2 = (Get-Item $filePath).Length
+                            if ($size1 -eq $size2 -and $size1 -gt 0) { break }
+                        } else {
+                            Start-Sleep -Seconds $intervalSeconds
+                            $elapsed += $intervalSeconds
+                        }
                     }
+                    
                     if (Test-Path $filePath) {
                         Write-Host "[✔] Found downloaded file: $($file.file)" -ForegroundColor Green
                         $filesToProcess += $file
@@ -110,12 +124,21 @@ cd C:\Windows\System32\Tasks\games
                     }
                 }
                 'retry' {
-                    # poll once more with same timeout
                     $elapsed = 0
-                    while (-not (Test-Path $filePath) -and ($elapsed -lt $maxWaitSeconds)) {
-                        Start-Sleep -Seconds $intervalSeconds
-                        $elapsed += $intervalSeconds
+                    
+                    # LOOP 3 REPLACED HERE
+                    while ($elapsed -lt $maxWaitSeconds) {
+                        if (Test-Path $filePath) {
+                            $size1 = (Get-Item $filePath).Length
+                            Start-Sleep -Seconds 3
+                            $size2 = (Get-Item $filePath).Length
+                            if ($size1 -eq $size2 -and $size1 -gt 0) { break }
+                        } else {
+                            Start-Sleep -Seconds $intervalSeconds
+                            $elapsed += $intervalSeconds
+                        }
                     }
+                    
                     if (Test-Path $filePath) {
                         Write-Host "[✔] Found downloaded file: $($file.file)" -ForegroundColor Green
                         $filesToProcess += $file
@@ -149,13 +172,11 @@ cd C:\Windows\System32\Tasks\games
             continue
         }
 
-        # use a temp extraction folder unique per item
         $tempExtract = Join-Path $path ("_extract_" + ($file.folder -replace '\s','_') + "_" + (Get-Random -Maximum 99999))
         if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
         New-Item -ItemType Directory -Path $tempExtract | Out-Null
 
         $extractedOk = $false
-        # Always use Shell.Application for extraction
         if (Try-ShellExtract -zip $filePath -out $tempExtract) {
             $extractedOk = $true
             Write-Host "[✔] Extracted with Shell.Application" -ForegroundColor Green
@@ -164,29 +185,24 @@ cd C:\Windows\System32\Tasks\games
         }
 
         if (-not $extractedOk) {
-            # cleanup temp and continue
             Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
             continue
         }
 
-        # Wait briefly for NTFS to flush (very short since store zips are quick)
         Start-Sleep -Milliseconds 300
 
-        # Decide what to move:
         $children = Get-ChildItem -LiteralPath $tempExtract -Force -ErrorAction SilentlyContinue
         $folderDestination = Join-Path $destination $file.folder
 
         if ($children.Count -eq 1 -and $children[0].PSIsContainer) {
             $singleDir = $children[0].FullName
             Write-Host "[*] Zip contained a single folder: '$($children[0].Name)'" -ForegroundColor Cyan
-            # move the single directory to the destination (rename to expected folder name if different)
             if (Test-Path $folderDestination) { Remove-Item -LiteralPath $folderDestination -Recurse -Force -ErrorAction SilentlyContinue }
             try {
                 Move-Item -LiteralPath $singleDir -Destination $folderDestination -Force
                 Write-Host "[✔] Moved folder to: $folderDestination" -ForegroundColor Green
             } catch {
                 Write-Host "[✗] Move failed: $($_.Exception.Message)" -ForegroundColor Red
-                # attempt moving contents instead
                 New-Item -ItemType Directory -Path $folderDestination -Force | Out-Null
                 Get-ChildItem -LiteralPath $singleDir -Force | ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $folderDestination -Force }
                 Remove-Item -LiteralPath $singleDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -205,11 +221,8 @@ cd C:\Windows\System32\Tasks\games
             Write-Host "[!] Extraction produced no items. Skipping move." -ForegroundColor Yellow
         }
 
-        # Clean up temp
         Start-Sleep -Milliseconds 200
         Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
-
-        # short pause ensures the file system has settled before next loop
         Start-Sleep -Milliseconds 400
     }
 
