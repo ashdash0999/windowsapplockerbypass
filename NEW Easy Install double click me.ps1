@@ -75,7 +75,7 @@ cd C:\Windows\System32\Tasks\games
             $maxWaitSeconds = 300
             $intervalSeconds = 2
             $elapsed = 0
-            Write-Host "`nWaiting up to $maxWaitSeconds seconds for $($file.file) to appear in $path..." -ForegroundColor Yellow
+            Write-Host "`nWaiting up to $maxWaitSeconds seconds for $($file.file) to appear in $path Then press Enter..." -ForegroundColor Yellow
             
             # LOOP 1 REPLACED HERE
             while ($elapsed -lt $maxWaitSeconds) {
